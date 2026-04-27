@@ -1,0 +1,33 @@
+# gitleaks config for msi-jinni-dist audit gate.
+# Extends gitleaks default ruleset and adds custom Firebase / service-account rules.
+
+title = "msi-jinni-dist audit gitleaks config"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "gcp-service-account-json"
+description = "GCP / Firebase service account JSON key (type: service_account)"
+regex = '''(?i)"type"\s*:\s*"service_account"'''
+tags = ["key", "gcp", "firebase", "service-account"]
+
+[[rules]]
+id = "firebase-admin-sdk-private-key"
+description = "Firebase Admin SDK private_key field"
+regex = '''(?i)"private_key"\s*:\s*"-----BEGIN (RSA |EC )?PRIVATE KEY-----'''
+tags = ["key", "firebase", "private-key"]
+
+[[rules]]
+id = "firebase-admin-sdk-filename-marker"
+description = "Firebase Admin SDK JSON filename marker found inside content"
+regex = '''[a-z0-9-]+-firebase-adminsdk-[a-z0-9]+\.json'''
+tags = ["firebase", "admin-sdk", "filename"]
+
+[allowlist]
+description = "Allowlist for fixture-test scaffolding"
+paths = [
+  '''audit-rules/fixtures/.*''',
+  '''README\.md$''',
+  '''audit-rules/gitleaks\.toml$'''
+]

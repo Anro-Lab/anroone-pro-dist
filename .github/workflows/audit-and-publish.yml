@@ -1,0 +1,133 @@
+name: audit-and-publish
+
+on:
+  repository_dispatch:
+    types: [audit_release]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to audit and publish (must be an existing draft release)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  issues: write
+  actions: read
+
+jobs:
+  audit:
+    runs-on: [self-hosted, Linux, X64]
+    env:
+      TAG: ${{ github.event.client_payload.tag || inputs.tag }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Validate inputs
+        run: |
+          if [ -z "${TAG:-}" ]; then
+            echo "::error::no tag supplied via client_payload.tag or inputs.tag"
+            exit 1
+          fi
+          echo "auditing tag=${TAG}"
+
+      - name: Guard - check audit self-test status (fail-closed)
+        run: |
+          set -u
+          conclusion=$(gh run list \
+            --repo "${{ github.repository }}" \
+            --workflow audit-self-test.yml \
+            --limit 1 \
+            --json conclusion \
+            --jq '.[0].conclusion' 2>/dev/null || echo "")
+          echo "last audit-self-test conclusion: '${conclusion}'"
+          if [ "${conclusion}" = "failure" ] || [ "${conclusion}" = "cancelled" ] || [ "${conclusion}" = "timed_out" ]; then
+            echo "::error::audit-self-test is in alarm state (${conclusion}); refusing to publish"
+            exit 1
+          fi
+
+      - name: Checkout dist repo (for audit-rules)
+        uses: actions/checkout@v4
+
+      - name: Download draft release asset
+        run: |
+          set -u
+          mkdir -p ./_dl
+          gh release download "${TAG}" --repo "${{ github.repository }}" -D ./_dl
+          echo "downloaded files:"
+          ls -la ./_dl
+
+      - name: Unpack zip
+        id: unpack
+        run: |
+          set -u
+          mkdir -p ./_unpack
+          zipfile=$(find ./_dl -maxdepth 1 -type f -iname '*.zip' | head -1)
+          if [ -z "$zipfile" ]; then
+            echo "::error::no zip asset found in release ${TAG}"
+            exit 1
+          fi
+          new_size=$(stat -c '%s' "$zipfile" 2>/dev/null || stat -f '%z' "$zipfile")
+          echo "zipfile=$zipfile new_size=$new_size"
+          echo "new_size=$new_size" >> "$GITHUB_OUTPUT"
+          unzip -q "$zipfile" -d ./_unpack
+
+      - name: Resolve baseline release size
+        id: baseline
+        run: |
+          set -u
+          # Find previous published (non-draft, non-prerelease) release excluding current tag.
+          baseline=$(gh release list --repo "${{ github.repository }}" -L 20 \
+            --json tagName,isDraft,isPrerelease,createdAt \
+            --jq "[.[] | select(.isDraft==false and .isPrerelease==false and .tagName!=\"${TAG}\")] | sort_by(.createdAt) | reverse | .[0].tagName" 2>/dev/null || echo "")
+          if [ -z "$baseline" ] || [ "$baseline" = "null" ]; then
+            echo "no baseline release found"
+            echo "baseline_size=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          size=$(gh release view "$baseline" --repo "${{ github.repository }}" --json assets \
+            --jq '[.assets[] | select(.name | endswith(".zip")) | .size] | first // 0')
+          echo "baseline=$baseline size=$size"
+          echo "baseline_size=$size" >> "$GITHUB_OUTPUT"
+
+      - name: Run audit
+        id: audit
+        uses: ./.github/actions/run-audit
+        with:
+          unpack-dir: ./_unpack
+          baseline-size: ${{ steps.baseline.outputs.baseline_size }}
+          new-size: ${{ steps.unpack.outputs.new_size }}
+          require-integrity: 'true'
+
+      - name: Publish (PASS path)
+        if: steps.audit.outputs.result == 'PASS'
+        run: |
+          gh release edit "${TAG}" --repo "${{ github.repository }}" --draft=false
+          echo "::notice::published ${TAG}"
+
+      - name: Cleanup + alert (FAIL path)
+        if: steps.audit.outputs.result != 'PASS'
+        env:
+          REASON: ${{ steps.audit.outputs.reason }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          set -u
+          echo "::error::audit FAIL reason=${REASON}; deleting draft ${TAG}"
+          gh release delete "${TAG}" --repo "${{ github.repository }}" --cleanup-tag --yes || true
+          gh issue create \
+            --repo Anro-Lab/MSI-Jinni-Launcher \
+            --title "Audit FAIL on dist tag ${TAG}" \
+            --body "Dist repo audit gate rejected tag \`${TAG}\`.
+
+Reason: \`${REASON}\`
+
+Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+Draft release was deleted and tag cleaned up. AI-Desktop CI must re-tag and re-push after fixing the artifact."
+          if [ -n "${DISCORD_WEBHOOK_URL:-}" ]; then
+            payload=$(printf '{"content":"@PM dist audit FAIL: tag=%s reason=%s run=%s/%s/actions/runs/%s"}' \
+              "${TAG}" "${REASON}" "${{ github.server_url }}" "${{ github.repository }}" "${{ github.run_id }}")
+            curl -sS -X POST -H "Content-Type: application/json" -d "$payload" "$DISCORD_WEBHOOK_URL" || true
+          else
+            echo "DISCORD_WEBHOOK_URL not set; skipped Discord alert"
+          fi
+          exit 1

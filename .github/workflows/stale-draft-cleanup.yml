@@ -1,0 +1,32 @@
+name: stale-draft-cleanup
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: [self-hosted, Linux, X64]
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Delete drafts older than 24h
+        run: |
+          set -u
+          tags=$(gh api "repos/${{ github.repository }}/releases" --paginate \
+            --jq '.[] | select(.draft==true and (now - (.created_at|fromdateiso8601)) > 86400) | .tag_name')
+          if [ -z "$tags" ]; then
+            echo "no stale drafts found"
+            exit 0
+          fi
+          echo "stale draft tags:"
+          echo "$tags"
+          while IFS= read -r tag; do
+            [ -z "$tag" ] && continue
+            echo "deleting stale draft: $tag"
+            gh release delete "$tag" --repo "${{ github.repository }}" --cleanup-tag --yes || true
+          done <<< "$tags"

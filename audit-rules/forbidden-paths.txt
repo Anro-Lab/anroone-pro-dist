@@ -1,0 +1,13 @@
+# Forbidden path / extension patterns for unpacked release artifacts.
+# One pattern per line. Lines starting with '#' are comments.
+# Patterns are matched against paths under the unpacked release tree (./_unpack)
+# using case-insensitive shell-style globbing on basename and substring on path.
+*.ts
+*.tsx
+*.env
+*.pem
+*.key
+tsconfig.json
+.git/
+*-firebase-adminsdk-*.json
+src/

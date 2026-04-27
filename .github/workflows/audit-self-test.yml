@@ -1,0 +1,103 @@
+name: audit-self-test
+
+on:
+  push:
+    paths:
+      - 'audit-rules/**'
+      - '.github/workflows/audit-*.yml'
+      - '.github/actions/run-audit/**'
+  schedule:
+    - cron: '23 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  size-policy-unit:
+    runs-on: [self-hosted, Linux, X64]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run size_policy_test.sh
+        run: bash audit-rules/size_policy_test.sh
+
+  metamorphic:
+    runs-on: [self-hosted, Linux, X64]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: clean-fixture
+            zip: audit-rules/fixtures/clean-fixture.zip
+            expected: PASS
+          - name: dirty-service-account
+            zip: audit-rules/fixtures/dirty-service-account.zip
+            expected: FAIL
+          - name: dirty-ts-source
+            zip: audit-rules/fixtures/dirty-ts-source.zip
+            expected: FAIL
+          - name: dirty-env
+            zip: audit-rules/fixtures/dirty-env.zip
+            expected: FAIL
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Unpack fixture
+        id: unpack
+        run: |
+          set -u
+          mkdir -p ./_unpack
+          unzip -q "${{ matrix.zip }}" -d ./_unpack
+          new_size=$(stat -c '%s' "${{ matrix.zip }}" 2>/dev/null || stat -f '%z' "${{ matrix.zip }}")
+          echo "new_size=$new_size" >> "$GITHUB_OUTPUT"
+
+      - name: Run audit
+        id: audit
+        uses: ./.github/actions/run-audit
+        with:
+          unpack-dir: ./_unpack
+          baseline-size: ''
+          new-size: ${{ steps.unpack.outputs.new_size }}
+          require-integrity: ${{ matrix.name == 'clean-fixture' && 'true' || 'false' }}
+
+      - name: Verify metamorphic invariant
+        env:
+          GOT: ${{ steps.audit.outputs.result }}
+          EXPECTED: ${{ matrix.expected }}
+          NAME: ${{ matrix.name }}
+        run: |
+          set -u
+          echo "fixture=${NAME} expected=${EXPECTED} got=${GOT}"
+          if [ "${GOT}" != "${EXPECTED}" ]; then
+            echo "::error::INVARIANT VIOLATED for ${NAME}: expected ${EXPECTED}, got ${GOT}"
+            exit 1
+          fi
+
+  alarm-on-failure:
+    runs-on: [self-hosted, Linux, X64]
+    needs: [metamorphic, size-policy-unit]
+    if: failure()
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+    steps:
+      - name: Open alarm issue + Discord alert
+        run: |
+          set -u
+          gh issue create \
+            --repo Anro-Lab/MSI-Jinni-Launcher \
+            --title "AUDIT-WORKFLOW-BROKEN dist repo alarm" \
+            --label "critical" \
+            --body "audit-self-test failed in dist repo. A metamorphic invariant was violated, meaning the audit gate is no longer trustworthy.
+
+Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+\`audit-and-publish\` will refuse to publish anything until self-test passes again." || true
+          if [ -n "${DISCORD_WEBHOOK_URL:-}" ]; then
+            payload=$(printf '{"content":"@PM AUDIT-WORKFLOW-BROKEN: dist repo alarm. run=%s/%s/actions/runs/%s"}' \
+              "${{ github.server_url }}" "${{ github.repository }}" "${{ github.run_id }}")
+            curl -sS -X POST -H "Content-Type: application/json" -d "$payload" "$DISCORD_WEBHOOK_URL" || true
+          else
+            echo "DISCORD_WEBHOOK_URL not set; skipped Discord alert"
+          fi

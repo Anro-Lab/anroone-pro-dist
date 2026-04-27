@@ -1,0 +1,11 @@
+# Size policy for release artifact size delta vs previous published release.
+# delta_pct = abs(new_size - baseline_size) / baseline_size * 100
+#
+# - delta_pct >= fail_pct -> FAIL the audit
+# - warn_pct <= delta_pct < fail_pct -> WARN (audit still passes)
+# - delta_pct < warn_pct -> PASS silently
+# - skip_if_no_baseline=true: when no previous release exists (first release),
+#   the size policy step prints "baseline missing, skipped" and PASSes.
+warn_pct: 50
+fail_pct: 100
+skip_if_no_baseline: true
