@@ -4,7 +4,7 @@ Public distribution channel for **MSI AI Jinni**.
 
 ## Purpose
 
-This repository is a write-only distribution endpoint. It hosts the Windows desktop installer artifacts (`win-unpacked/` zip + `docker-compose.yml`) that the MSI Jinni Launcher downloads on end-user machines.
+This repository is a write-only distribution endpoint. It hosts the Windows desktop installer artifacts (zip containing the Electron `win-unpacked` contents directly at the zip root) that the MSI Jinni Launcher downloads on end-user machines.
 
 - **No source code lives here.** Source repos: [`Anro-Lab/MSI-Jinni-Launcher`](https://github.com/Anro-Lab/MSI-Jinni-Launcher) (Go launcher), `Anro-Lab/MSI-Jinni-AI-Desktop` (Electron desktop, private).
 - **Anonymous read** is allowed — end users do not need GitHub credentials.
@@ -14,7 +14,7 @@ This repository is a write-only distribution endpoint. It hosts the Windows desk
 ## Release Flow
 
 ```
-AI-Desktop CI (build win-unpacked + docker-compose)
+AI-Desktop CI (build Electron win-unpacked)
    └─> push DRAFT release to this repo via PAT
    └─> POST repository_dispatch (event_type=audit_release, client_payload.tag=vX.Y.Z)
                           │
@@ -37,7 +37,7 @@ Stale drafts (>24h, never published) are cleaned by `stale-draft-cleanup.yml` da
 | Service-account JSON | Custom regex `"type"\s*:\s*"service_account"` + `*-firebase-adminsdk-*.json` | Hit -> FAIL |
 | Forbidden paths | `audit-rules/forbidden-paths.txt` (`*.ts`, `*.env`, `src/`, `*.pem`, `*.key`, `tsconfig.json`, `.git/`) | Hit -> FAIL |
 | Size policy | `audit-rules/size-policy.yml` (warn >=50%, fail >=100% delta vs previous release; first release skipped) | >=100% -> FAIL |
-| Integrity | Must contain `win-unpacked/` and `docker-compose.yml` | Missing -> FAIL |
+| Integrity | Must contain a `.exe` file and `resources/app.asar` (Electron structure) | Missing -> FAIL |
 
 The audit workflow is itself protected by a daily metamorphic self-test (`audit-self-test.yml`) that runs the gate against fixed clean / dirty fixtures. If a known-dirty fixture ever passes, the repo enters an **alarm state** and `audit-and-publish` refuses to publish anything until fixed.
 
@@ -55,6 +55,20 @@ For any tag `vX.Y.Z`:
 - **Direct push to `main` is blocked.** Branch protection requires PR + review.
 - **Releases are created exclusively via the AI-Desktop CI PAT bot.** Manual release creation by humans is disallowed by policy.
 
-## Self-hosted Runner
+## Artifact Format
 
-All workflows run on the 5060 self-hosted runner (label `[self-hosted, Linux, X64]`). If the runner is not visible to this repo, an org admin must enable the org-level runner group for `Anro-Lab/msi-jinni-dist` via Settings -> Actions -> Runner groups.
+The release zip contains the Electron `win-unpacked` contents **directly at the zip root** (not wrapped in a subdirectory):
+
+```
+ai-desktop-vX.Y.Z.zip
+├── AppName.exe          ← main Windows executable
+├── locales/
+├── resources/
+│   ├── app.asar         ← Electron app bundle
+│   └── ...
+└── *.dll / *.pak / ...
+```
+
+## Runner
+
+All workflows run on `ubuntu-latest` (GitHub-hosted).
