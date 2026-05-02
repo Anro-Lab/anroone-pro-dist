@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   cleanup:
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
