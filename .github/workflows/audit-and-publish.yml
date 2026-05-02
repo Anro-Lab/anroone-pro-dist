@@ -75,7 +75,6 @@ jobs:
         id: baseline
         run: |
           set -u
-          # Find previous published (non-draft, non-prerelease) release excluding current tag.
           baseline=$(gh release list --repo "${{ github.repository }}" -L 20 \
             --json tagName,isDraft,isPrerelease,createdAt \
             --jq "[.[] | select(.isDraft==false and .isPrerelease==false and .tagName!=\"${TAG}\")] | sort_by(.createdAt) | reverse | .[0].tagName" 2>/dev/null || echo "")
@@ -116,13 +115,7 @@ jobs:
           gh issue create \
             --repo Anro-Lab/MSI-Jinni-Launcher \
             --title "Audit FAIL on dist tag ${TAG}" \
-            --body "Dist repo audit gate rejected tag \`${TAG}\`.
-
-Reason: \`${REASON}\`
-
-Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-Draft release was deleted and tag cleaned up. AI-Desktop CI must re-tag and re-push after fixing the artifact."
+            --body "Dist audit FAIL: tag=${TAG} reason=${REASON} run=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" || true
           if [ -n "${DISCORD_WEBHOOK_URL:-}" ]; then
             payload=$(printf '{"content":"@PM dist audit FAIL: tag=%s reason=%s run=%s/%s/actions/runs/%s"}' \
               "${TAG}" "${REASON}" "${{ github.server_url }}" "${{ github.repository }}" "${{ github.run_id }}")
