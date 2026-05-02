@@ -1,4 +1,4 @@
-name: 'Run Audit'
+﻿name: 'Run Audit'
 description: 'Run the full audit gate (gitleaks + trufflehog + forbidden-paths + size + integrity) against an unpacked release tree.'
 inputs:
   unpack-dir:
@@ -193,11 +193,11 @@ runs:
           exit 0
         fi
         missing=""
-        if ! find "${UNPACK_DIR}" -maxdepth 4 -type d -iname 'win-unpacked' | grep -q .; then
-          missing="${missing} win-unpacked/"
+        if ! find "${UNPACK_DIR}" -maxdepth 2 -type f -iname '*.exe' | grep -q .; then
+          missing="${missing} *.exe"
         fi
-        if ! find "${UNPACK_DIR}" -maxdepth 4 -type f -iname 'docker-compose.yml' -o -iname 'docker-compose.yaml' 2>/dev/null | grep -q .; then
-          missing="${missing} docker-compose.yml"
+        if ! find "${UNPACK_DIR}" -maxdepth 3 -type f -name 'app.asar' | grep -q .; then
+          missing="${missing} resources/app.asar"
         fi
         if [ -n "$missing" ]; then
           echo "INTEGRITY FAIL: missing required entries:${missing}"
