@@ -98,12 +98,21 @@ runs:
           esac
           # Normalise: dir patterns end with '/'; otherwise treat as glob over basename + path substring
           if [[ "$pattern" == */ ]]; then
-            found=$(find "${UNPACK_DIR}" -type d -name "${pattern%/}" -print 2>/dev/null | head -20)
+            found=$(find "${UNPACK_DIR}" -type d -name "${pattern%/}" \
+              -not -path "*/node_modules/*" -print 2>/dev/null | head -20)
           elif [[ "$pattern" == *\** ]]; then
-            # glob -> match basename
-            found=$(find "${UNPACK_DIR}" -type f -iname "$pattern" -print 2>/dev/null | head -20)
+            # glob -> match basename, exclude node_modules
+            if [[ "$pattern" == "*.ts" || "$pattern" == "*.tsx" ]]; then
+              # exclude compiled declaration files (.d.ts) which are valid build artifacts
+              found=$(find "${UNPACK_DIR}" -type f -iname "$pattern" \
+                -not -iname "*.d.ts" -not -path "*/node_modules/*" -print 2>/dev/null | head -20)
+            else
+              found=$(find "${UNPACK_DIR}" -type f -iname "$pattern" \
+                -not -path "*/node_modules/*" -print 2>/dev/null | head -20)
+            fi
           else
-            found=$(find "${UNPACK_DIR}" -iname "$pattern" -print 2>/dev/null | head -20)
+            found=$(find "${UNPACK_DIR}" -iname "$pattern" \
+              -not -path "*/node_modules/*" -print 2>/dev/null | head -20)
           fi
           if [ -n "$found" ]; then
             echo "FORBIDDEN-PATH HIT: pattern='$pattern'"
