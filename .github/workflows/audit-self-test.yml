@@ -31,15 +31,19 @@ jobs:
           - name: clean-fixture
             zip: audit-rules/fixtures/clean-fixture.zip
             expected: PASS
+            require_integrity: 'true'
           - name: dirty-service-account
             zip: audit-rules/fixtures/dirty-service-account.zip
             expected: FAIL
+            require_integrity: 'false'
           - name: dirty-ts-source
             zip: audit-rules/fixtures/dirty-ts-source.zip
             expected: FAIL
+            require_integrity: 'false'
           - name: dirty-env
             zip: audit-rules/fixtures/dirty-env.zip
             expected: FAIL
+            require_integrity: 'false'
     steps:
       - uses: actions/checkout@v4
 
@@ -59,7 +63,7 @@ jobs:
           unpack-dir: ./_unpack
           baseline-size: ''
           new-size: ${{ steps.unpack.outputs.new_size }}
-          require-integrity: ${{ matrix.name == 'clean-fixture' && 'true' || 'false' }}
+          require-integrity: ${{ matrix.require_integrity }}
 
       - name: Verify metamorphic invariant
         env:
@@ -89,11 +93,7 @@ jobs:
             --repo Anro-Lab/MSI-Jinni-Launcher \
             --title "AUDIT-WORKFLOW-BROKEN dist repo alarm" \
             --label "critical" \
-            --body "audit-self-test failed in dist repo. A metamorphic invariant was violated, meaning the audit gate is no longer trustworthy.
-
-Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-\`audit-and-publish\` will refuse to publish anything until self-test passes again." || true
+            --body "audit-self-test failed in dist repo. A metamorphic invariant was violated." || true
           if [ -n "${DISCORD_WEBHOOK_URL:-}" ]; then
             payload=$(printf '{"content":"@PM AUDIT-WORKFLOW-BROKEN: dist repo alarm. run=%s/%s/actions/runs/%s"}' \
               "${{ github.server_url }}" "${{ github.repository }}" "${{ github.run_id }}")
