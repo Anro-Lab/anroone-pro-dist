@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   audit:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     env:
       TAG: ${{ github.event.client_payload.tag || inputs.tag }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -46,7 +46,7 @@ jobs:
           fi
 
       - name: Checkout dist repo (for audit-rules)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
 
       - name: Download draft release asset
         run: |
@@ -69,12 +69,13 @@ jobs:
           new_size=$(stat -c '%s' "$zipfile" 2>/dev/null || stat -f '%z' "$zipfile")
           echo "zipfile=$zipfile new_size=$new_size"
           echo "new_size=$new_size" >> "$GITHUB_OUTPUT"
-          unzip -q "$zipfile" -d ./_unpack
+          unzip -q "$zipfile" -d ./_unpack || { rc=$?; [ $rc -le 1 ] || exit $rc; }
 
       - name: Resolve baseline release size
         id: baseline
         run: |
           set -u
+          # Find previous published (non-draft, non-prerelease) release excluding current tag.
           baseline=$(gh release list --repo "${{ github.repository }}" -L 20 \
             --json tagName,isDraft,isPrerelease,createdAt \
             --jq "[.[] | select(.isDraft==false and .isPrerelease==false and .tagName!=\"${TAG}\")] | sort_by(.createdAt) | reverse | .[0].tagName" 2>/dev/null || echo "")
@@ -115,7 +116,13 @@ jobs:
           gh issue create \
             --repo Anro-Lab/MSI-Jinni-Launcher \
             --title "Audit FAIL on dist tag ${TAG}" \
-            --body "Dist audit FAIL: tag=${TAG} reason=${REASON} run=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" || true
+            --body "Dist repo audit gate rejected tag \`${TAG}\`.
+
+Reason: \`${REASON}\`
+
+Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+Draft release was deleted and tag cleaned up. AI-Desktop CI must re-tag and re-push after fixing the artifact."
           if [ -n "${DISCORD_WEBHOOK_URL:-}" ]; then
             payload=$(printf '{"content":"@PM dist audit FAIL: tag=%s reason=%s run=%s/%s/actions/runs/%s"}' \
               "${TAG}" "${REASON}" "${{ github.server_url }}" "${{ github.repository }}" "${{ github.run_id }}")
