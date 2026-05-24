@@ -100,8 +100,13 @@ runs:
           if [[ "$pattern" == */ ]]; then
             found=$(find "${UNPACK_DIR}" -type d -name "${pattern%/}" -print 2>/dev/null | head -20)
           elif [[ "$pattern" == *\** ]]; then
-            # glob -> match basename
-            found=$(find "${UNPACK_DIR}" -type f -iname "$pattern" -print 2>/dev/null | head -20)
+            # glob -> match basename; exclude .d.ts (compiled declaration files = valid build artifacts)
+            if [[ "$pattern" == "*.ts" || "$pattern" == "*.tsx" ]]; then
+              found=$(find "${UNPACK_DIR}" -type f -iname "$pattern" \
+                -not -iname "*.d.ts" -print 2>/dev/null | head -20)
+            else
+              found=$(find "${UNPACK_DIR}" -type f -iname "$pattern" -print 2>/dev/null | head -20)
+            fi
           else
             found=$(find "${UNPACK_DIR}" -iname "$pattern" -print 2>/dev/null | head -20)
           fi
@@ -187,8 +192,11 @@ runs:
         if ! find "${UNPACK_DIR}" -maxdepth 4 -type d -iname 'win-unpacked' | grep -q .; then
           missing="${missing} win-unpacked/"
         fi
-        if ! find "${UNPACK_DIR}" -maxdepth 4 -type f -iname 'docker-compose.yml' -o -iname 'docker-compose.yaml' 2>/dev/null | grep -q .; then
-          missing="${missing} docker-compose.yml"
+        if ! find "${UNPACK_DIR}" -maxdepth 5 -type f -iname '*.exe' | grep -q .; then
+          missing="${missing} *.exe"
+        fi
+        if ! find "${UNPACK_DIR}" -maxdepth 5 -type f -name 'app.asar' | grep -q .; then
+          missing="${missing} app.asar"
         fi
         if [ -n "$missing" ]; then
           echo "INTEGRITY FAIL: missing required entries:${missing}"
