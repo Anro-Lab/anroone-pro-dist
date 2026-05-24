@@ -113,16 +113,13 @@ jobs:
           set -u
           echo "::error::audit FAIL reason=${REASON}; deleting draft ${TAG}"
           gh release delete "${TAG}" --repo "${{ github.repository }}" --cleanup-tag --yes || true
+          body=$(printf 'Dist repo audit gate rejected tag `%s`.\n\nReason: `%s`\n\nWorkflow run: %s/%s/actions/runs/%s\n\nDraft release was deleted and tag cleaned up. AI-Desktop CI must re-tag and re-push after fixing the artifact.' \
+            "${TAG}" "${REASON}" \
+            "${{ github.server_url }}" "${{ github.repository }}" "${{ github.run_id }}")
           gh issue create \
             --repo Anro-Lab/MSI-Jinni-Launcher \
             --title "Audit FAIL on dist tag ${TAG}" \
-            --body "Dist repo audit gate rejected tag \`${TAG}\`.
-
-Reason: \`${REASON}\`
-
-Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-Draft release was deleted and tag cleaned up. AI-Desktop CI must re-tag and re-push after fixing the artifact."
+            --body "${body}"
           if [ -n "${DISCORD_WEBHOOK_URL:-}" ]; then
             payload=$(printf '{"content":"@PM dist audit FAIL: tag=%s reason=%s run=%s/%s/actions/runs/%s"}' \
               "${TAG}" "${REASON}" "${{ github.server_url }}" "${{ github.repository }}" "${{ github.run_id }}")

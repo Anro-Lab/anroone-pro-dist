@@ -85,15 +85,13 @@ jobs:
       - name: Open alarm issue + Discord alert
         run: |
           set -u
+          body=$(printf 'audit-self-test failed in dist repo. A metamorphic invariant was violated, meaning the audit gate is no longer trustworthy.\n\nWorkflow run: %s/%s/actions/runs/%s\n\n`audit-and-publish` will refuse to publish anything until self-test passes again.' \
+            "${{ github.server_url }}" "${{ github.repository }}" "${{ github.run_id }}")
           gh issue create \
             --repo Anro-Lab/MSI-Jinni-Launcher \
             --title "AUDIT-WORKFLOW-BROKEN dist repo alarm" \
             --label "critical" \
-            --body "audit-self-test failed in dist repo. A metamorphic invariant was violated, meaning the audit gate is no longer trustworthy.
-
-Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-\`audit-and-publish\` will refuse to publish anything until self-test passes again." || true
+            --body "${body}" || true
           if [ -n "${DISCORD_WEBHOOK_URL:-}" ]; then
             payload=$(printf '{"content":"@PM AUDIT-WORKFLOW-BROKEN: dist repo alarm. run=%s/%s/actions/runs/%s"}' \
               "${{ github.server_url }}" "${{ github.repository }}" "${{ github.run_id }}")
