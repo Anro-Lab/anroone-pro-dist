@@ -98,7 +98,8 @@ runs:
           esac
           # Normalise: dir patterns end with '/'; otherwise treat as glob over basename + path substring
           if [[ "$pattern" == */ ]]; then
-            found=$(find "${UNPACK_DIR}" -type d -name "${pattern%/}" -print 2>/dev/null | head -20)
+            # Exclude node_modules/: compiled npm packages legitimately use src/ as output dir
+            found=$(find "${UNPACK_DIR}" -type d -name "${pattern%/}" -not -path "*/node_modules/*" -print 2>/dev/null | head -20)
           elif [[ "$pattern" == *\** ]]; then
             # glob -> match basename; exclude .d.ts (compiled declaration files = valid build artifacts)
             if [[ "$pattern" == "*.ts" || "$pattern" == "*.tsx" ]]; then
