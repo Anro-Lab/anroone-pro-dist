@@ -40,10 +40,10 @@ paths = [
   '''.*\.asar$'''
 ]
 regexes = [
-  # Firebase Web Client API key (AIzaSy?? ??public by design; required in
+  # Firebase Web Client API key (AIzaSy…) — public by design; required in
   # client-side Firebase SDK initialisation and safe to ship in the app bundle.
   '''AIzaSy[0-9A-Za-z_-]{33}''',
-  # VAPID public key ??the well-known example key shipped by web-push-libs /
+  # VAPID public key — the well-known example key shipped by web-push-libs /
   # firebase-messaging docs; appears in multiple node_modules packages.
   '''BDOU99-h67HcA6JeFXHbSNMu7e2yNNu3RzoMj8TM4W88jITfq7ZmPvIM1Iv-4_l2LxQc'''
 ]

@@ -1,4 +1,4 @@
-﻿name: 'Run Audit'
+name: 'Run Audit'
 description: 'Run the full audit gate (gitleaks + trufflehog + forbidden-paths + size + integrity) against an unpacked release tree.'
 inputs:
   unpack-dir:
@@ -98,21 +98,12 @@ runs:
           esac
           # Normalise: dir patterns end with '/'; otherwise treat as glob over basename + path substring
           if [[ "$pattern" == */ ]]; then
-            found=$(find "${UNPACK_DIR}" -type d -name "${pattern%/}" \
-              -not -path "*/node_modules/*" -print 2>/dev/null | head -20)
+            found=$(find "${UNPACK_DIR}" -type d -name "${pattern%/}" -print 2>/dev/null | head -20)
           elif [[ "$pattern" == *\** ]]; then
-            # glob -> match basename, exclude node_modules
-            if [[ "$pattern" == "*.ts" || "$pattern" == "*.tsx" ]]; then
-              # exclude compiled declaration files (.d.ts) which are valid build artifacts
-              found=$(find "${UNPACK_DIR}" -type f -iname "$pattern" \
-                -not -iname "*.d.ts" -not -path "*/node_modules/*" -print 2>/dev/null | head -20)
-            else
-              found=$(find "${UNPACK_DIR}" -type f -iname "$pattern" \
-                -not -path "*/node_modules/*" -print 2>/dev/null | head -20)
-            fi
+            # glob -> match basename
+            found=$(find "${UNPACK_DIR}" -type f -iname "$pattern" -print 2>/dev/null | head -20)
           else
-            found=$(find "${UNPACK_DIR}" -iname "$pattern" \
-              -not -path "*/node_modules/*" -print 2>/dev/null | head -20)
+            found=$(find "${UNPACK_DIR}" -iname "$pattern" -print 2>/dev/null | head -20)
           fi
           if [ -n "$found" ]; then
             echo "FORBIDDEN-PATH HIT: pattern='$pattern'"
@@ -193,11 +184,11 @@ runs:
           exit 0
         fi
         missing=""
-        if ! find "${UNPACK_DIR}" -maxdepth 2 -type f -iname '*.exe' | grep -q .; then
-          missing="${missing} *.exe"
+        if ! find "${UNPACK_DIR}" -maxdepth 4 -type d -iname 'win-unpacked' | grep -q .; then
+          missing="${missing} win-unpacked/"
         fi
-        if ! find "${UNPACK_DIR}" -maxdepth 3 -type f -name 'app.asar' | grep -q .; then
-          missing="${missing} resources/app.asar"
+        if ! find "${UNPACK_DIR}" -maxdepth 4 -type f -iname 'docker-compose.yml' -o -iname 'docker-compose.yaml' 2>/dev/null | grep -q .; then
+          missing="${missing} docker-compose.yml"
         fi
         if [ -n "$missing" ]; then
           echo "INTEGRITY FAIL: missing required entries:${missing}"
