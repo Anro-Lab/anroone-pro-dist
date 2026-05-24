@@ -16,14 +16,14 @@ permissions:
 
 jobs:
   size-policy-unit:
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4.2.2
       - name: Run size_policy_test.sh
         run: bash audit-rules/size_policy_test.sh
 
   metamorphic:
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -75,7 +75,7 @@ jobs:
           fi
 
   alarm-on-failure:
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     needs: [metamorphic, size-policy-unit]
     if: failure()
     env:
