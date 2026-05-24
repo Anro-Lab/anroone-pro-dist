@@ -119,7 +119,7 @@ jobs:
           gh issue create \
             --repo Anro-Lab/MSI-Jinni-Launcher \
             --title "Audit FAIL on dist tag ${TAG}" \
-            --body "${body}"
+            --body "${body}" || true
           if [ -n "${DISCORD_WEBHOOK_URL:-}" ]; then
             payload=$(printf '{"content":"@PM dist audit FAIL: tag=%s reason=%s run=%s/%s/actions/runs/%s"}' \
               "${TAG}" "${REASON}" "${{ github.server_url }}" "${{ github.repository }}" "${{ github.run_id }}")
