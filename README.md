@@ -101,6 +101,21 @@ releaseDate: 'YYYY-MM-DDTHH:MM:SS.sssZ'
 
 `electron-updater` fetches this file via the GitHub provider, compares the version, prompts the user, then downloads and verifies (SHA-512) the NSIS installer before running it.
 
+## Release Notes
+
+### v0.10.17
+
+**Auto-Update Flow Fixes** — resolved multiple issues that prevented in-app updates from completing:
+
+| Issue | Root Cause | Fix |
+|-------|-----------|-----|
+| Update appeared to complete but app stayed on old version | `app.quit()` is async; Electron process kept file lock; NSIS installer couldn't overwrite EXE | Changed to `app.exit(0)` (immediate); PowerShell `Wait-Process` waits for process to fully exit before launching installer |
+| SHA-512 checksum mismatch | `electron-builder` generates `latest.yml` SHA-512 before code signing; signing changes EXE bytes | Build script recomputes SHA-512 of signed EXE and updates `latest.yml` after signing |
+| Publisher verification failure | `publisherName: "Anrotec"` only matches CN field; cert DN is `CN=AnroOne Pro Desktop` | Updated `publisherName` to full DN; also disabled verification via `_verifyUpdateCodeSignature` override |
+| Double percentage in splash screen | `updateProgress` always appended `percent%` even when `customStatus` already contained a percentage | Added early return when `customStatus` is provided |
+
+---
+
 ## Runner
 
 All workflows run on `ubuntu-latest` (GitHub-hosted).
