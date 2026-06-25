@@ -76,9 +76,13 @@ jobs:
         run: |
           set -u
           # Find previous published (non-draft, non-prerelease) release excluding current tag.
+          # Sorted by semantic version (not createdAt): a batch of historical releases were
+          # backfilled with an identical createdAt timestamp, which made sort_by(.createdAt)
+          # | reverse pick the OLDEST member of that tied group instead of the true latest
+          # (e.g. resolved to v0.10.20 instead of v0.10.30), causing false size-policy failures.
           baseline=$(gh release list --repo "${{ github.repository }}" -L 20 \
-            --json tagName,isDraft,isPrerelease,createdAt \
-            --jq "[.[] | select(.isDraft==false and .isPrerelease==false and .tagName!=\"${TAG}\")] | sort_by(.createdAt) | reverse | .[0].tagName" 2>/dev/null || echo "")
+            --json tagName,isDraft,isPrerelease \
+            --jq "[.[] | select(.isDraft==false and .isPrerelease==false and .tagName!=\"${TAG}\")] | map(. + {ver: (.tagName | ltrimstr(\"v\") | split(\"-\")[0] | split(\".\") | map(tonumber))}) | sort_by(.ver) | reverse | .[0].tagName" 2>/dev/null || echo "")
           if [ -z "$baseline" ] || [ "$baseline" = "null" ]; then
             echo "no baseline release found"
             echo "baseline_size=" >> "$GITHUB_OUTPUT"
